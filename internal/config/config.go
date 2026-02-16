@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/tnm/email-cli/internal/keychain"
 )
 
 type ProviderType string
@@ -144,4 +146,80 @@ func (c *Config) GetProvider(name string) (*ProviderConfig, error) {
 	}
 
 	return &provider, nil
+}
+
+// ResolveSecrets resolves any keychain references in the provider config.
+// Returns a copy with secrets resolved (original is not modified).
+func (p *ProviderConfig) ResolveSecrets() (*ProviderConfig, error) {
+	resolved := *p
+
+	switch p.Type {
+	case ProviderSMTP:
+		if p.SMTP != nil {
+			smtpCfg := *p.SMTP
+			if keychain.IsKeychainRef(smtpCfg.Password) {
+				secret, err := keychain.Resolve(smtpCfg.Password)
+				if err != nil {
+					return nil, fmt.Errorf("failed to resolve SMTP password: %w", err)
+				}
+				smtpCfg.Password = secret
+			}
+			resolved.SMTP = &smtpCfg
+		}
+
+	case ProviderProton:
+		if p.Proton != nil {
+			protonCfg := *p.Proton
+			if keychain.IsKeychainRef(protonCfg.Password) {
+				secret, err := keychain.Resolve(protonCfg.Password)
+				if err != nil {
+					return nil, fmt.Errorf("failed to resolve Proton password: %w", err)
+				}
+				protonCfg.Password = secret
+			}
+			resolved.Proton = &protonCfg
+		}
+
+	case ProviderGoogle:
+		if p.Google != nil {
+			googleCfg := *p.Google
+			if keychain.IsKeychainRef(googleCfg.ClientSecret) {
+				secret, err := keychain.Resolve(googleCfg.ClientSecret)
+				if err != nil {
+					return nil, fmt.Errorf("failed to resolve Google client secret: %w", err)
+				}
+				googleCfg.ClientSecret = secret
+			}
+			if keychain.IsKeychainRef(googleCfg.AccessToken) {
+				secret, err := keychain.Resolve(googleCfg.AccessToken)
+				if err != nil {
+					return nil, fmt.Errorf("failed to resolve Google access token: %w", err)
+				}
+				googleCfg.AccessToken = secret
+			}
+			if keychain.IsKeychainRef(googleCfg.RefreshToken) {
+				secret, err := keychain.Resolve(googleCfg.RefreshToken)
+				if err != nil {
+					return nil, fmt.Errorf("failed to resolve Google refresh token: %w", err)
+				}
+				googleCfg.RefreshToken = secret
+			}
+			resolved.Google = &googleCfg
+		}
+
+	case ProviderAgentMail:
+		if p.AgentMail != nil {
+			agentMailCfg := *p.AgentMail
+			if keychain.IsKeychainRef(agentMailCfg.APIKey) {
+				secret, err := keychain.Resolve(agentMailCfg.APIKey)
+				if err != nil {
+					return nil, fmt.Errorf("failed to resolve AgentMail API key: %w", err)
+				}
+				agentMailCfg.APIKey = secret
+			}
+			resolved.AgentMail = &agentMailCfg
+		}
+	}
+
+	return &resolved, nil
 }

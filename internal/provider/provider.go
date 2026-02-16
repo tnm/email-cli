@@ -29,6 +29,13 @@ type Provider interface {
 }
 
 func New(cfg *config.ProviderConfig) (Provider, error) {
+	// Resolve any keychain references before using config
+	resolved, err := cfg.ResolveSecrets()
+	if err != nil {
+		return nil, err
+	}
+	cfg = resolved
+
 	switch cfg.Type {
 	case config.ProviderGoogle:
 		if cfg.Google == nil {

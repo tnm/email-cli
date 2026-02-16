@@ -76,6 +76,7 @@ email-cli config add --name <name> [flags]
 | `--refresh-token` | Google OAuth refresh token |
 | `--oauth-method` | Google OAuth method: `device` (default) or `local` |
 | `--default` | Set as default provider |
+| `--use-keychain` | Store secrets in macOS Keychain (macOS only) |
 
 **Examples:**
 ```bash
@@ -120,6 +121,13 @@ email-cli config add --name gmail \
   --from me@gmail.com \
   --client-id "xxx.apps.googleusercontent.com" \
   --client-secret "xxx"
+
+# With Keychain (macOS only)
+email-cli config add --name agent \
+  --type agentmail \
+  --api-key "am_..." \
+  --inbox-id "myagent@agentmail.to" \
+  --use-keychain
 ```
 
 ---
@@ -142,7 +150,7 @@ Show config as JSON.
 email-cli config show                     # Full config (redacted)
 email-cli config show <name>              # Specific provider (redacted)
 email-cli config show --show-secrets      # Full config with secrets
-email-cli config show <name> --show-secrets
+email-cli config show --show-secrets <name>  # Specific provider with secrets
 ```
 
 ---
@@ -164,11 +172,19 @@ email-cli config set <name> <key> <value>
 | Proton | `from`, `host`, `port`, `username`, `password` |
 | Google | `from`, `client-id`, `client-secret`, `access-token`, `refresh-token` |
 
+**Flags:**
+| Flag | Description |
+|------|-------------|
+| `--use-keychain` | Store secret in macOS Keychain (macOS only) |
+
 **Examples:**
 ```bash
 email-cli config set work password "new-pass"
 email-cli config set work host smtp.newserver.com
 email-cli config set agent api-key "am_newkey..."
+
+# Store in Keychain (macOS)
+email-cli config set --use-keychain work password "new-pass"
 ```
 
 ---

@@ -75,14 +75,41 @@ Config is stored at `~/.config/email-cli/config.json`
 
 `email-cli` follows a pragmatic local-file security model:
 
-- Secrets are stored in plaintext in `~/.config/email-cli/config.json`.
+- Secrets are stored in plaintext in `~/.config/email-cli/config.json` by default.
+- On macOS, you can use `--use-keychain` to store secrets in macOS Keychain instead.
 - File permissions are restricted to owner-only (`0600`) when writing config.
 - `email-cli config show` redacts secrets by default.
 - `email-cli config show --show-secrets` prints raw secrets and should be treated as sensitive.
 
-Operational guidance:
+### macOS Keychain Support
+
+On macOS, you can store secrets in the system Keychain instead of the config file:
+
+```bash
+# Store credentials in Keychain when adding a provider
+email-cli config add --name agent \
+  --type agentmail \
+  --api-key "am_..." \
+  --inbox-id "myagent@agentmail.to" \
+  --use-keychain
+
+# Update a secret and store in Keychain
+email-cli config set --use-keychain mymail password "new-password"
+```
+
+When using Keychain, the config file stores a reference like `keychain:mymail/password` instead of the actual secret. The secret is resolved from Keychain at runtime.
+
+Benefits:
+- Secrets never appear in the config file
+- Protected by macOS Keychain security (Touch ID, password, etc.)
+- Secrets survive config file inspection
+
+Note: Keychain support is only available on macOS.
+
+### Operational Guidance
 
 - Avoid passing secrets directly on command lines when possible (`--api-key`, `--password`, `--access-token`, `--refresh-token`) because shell history and process inspection may expose them.
+- Use `--use-keychain` on macOS for sensitive credentials.
 - Prefer app-specific passwords for SMTP providers (for Gmail, use an App Password).
 - Rotate credentials immediately if a machine, shell history, or agent transcript is exposed.
 - For install safety, prefer reviewing `install.sh` from a pinned version tag before running it.
@@ -180,7 +207,7 @@ email-cli config list
 email-cli config show                     # full config (secrets redacted)
 email-cli config show mymail              # specific provider (secrets redacted)
 email-cli config show --show-secrets      # include secrets/tokens
-email-cli config show mymail --show-secrets
+email-cli config show --show-secrets mymail
 
 # Set individual values
 email-cli config set mymail password "new-password"
@@ -467,7 +494,7 @@ email-cli config show
 email-cli config show agent-mail
 
 # Include secrets/tokens only when needed
-email-cli config show agent-mail --show-secrets
+email-cli config show --show-secrets agent-mail
 ```
 
 ### Environment Variables

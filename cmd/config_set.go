@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/tnm/email-cli/internal/config"
+	"github.com/tnm/email-cli/internal/keychain"
 	"github.com/urfave/cli/v2"
 )
 
@@ -23,7 +24,11 @@ func configSetCommand() *cli.Command {
 			"Examples:\n" +
 			"  email-cli config set mymail password \"new-password\"\n" +
 			"  email-cli config set mymail host smtp.newserver.com\n" +
-			"  email-cli config set agent api-key \"am_...\"",
+			"  email-cli config set agent api-key \"am_...\"\n" +
+			"  email-cli config set agent api-key \"am_...\" --use-keychain",
+		Flags: []cli.Flag{
+			&cli.BoolFlag{Name: "use-keychain", Usage: "Store secret in macOS Keychain"},
+		},
 		Action: runConfigSet,
 	}
 }
@@ -33,6 +38,11 @@ func runConfigSet(c *cli.Context) error {
 		return fmt.Errorf("usage: email-cli config set <name> <key> <value>")
 	}
 	name, key, value := c.Args().Get(0), c.Args().Get(1), c.Args().Get(2)
+
+	useKeychain := c.Bool("use-keychain")
+	if useKeychain && !keychain.IsSupported() {
+		return fmt.Errorf("--use-keychain is only supported on macOS")
+	}
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -106,12 +116,26 @@ func runConfigSet(c *cli.Context) error {
 			if p.SMTP == nil {
 				return fmt.Errorf("smtp config missing for %q", name)
 			}
-			p.SMTP.Password = value
+			if useKeychain || keychain.IsKeychainRef(p.SMTP.Password) {
+				if err := keychain.Set(name+"/password", value); err != nil {
+					return fmt.Errorf("failed to store password in keychain: %w", err)
+				}
+				p.SMTP.Password = keychain.KeychainRef(name, "password")
+			} else {
+				p.SMTP.Password = value
+			}
 		case config.ProviderProton:
 			if p.Proton == nil {
 				return fmt.Errorf("proton config missing for %q", name)
 			}
-			p.Proton.Password = value
+			if useKeychain || keychain.IsKeychainRef(p.Proton.Password) {
+				if err := keychain.Set(name+"/password", value); err != nil {
+					return fmt.Errorf("failed to store password in keychain: %w", err)
+				}
+				p.Proton.Password = keychain.KeychainRef(name, "password")
+			} else {
+				p.Proton.Password = value
+			}
 		default:
 			return fmt.Errorf("key %q not valid for provider type %s", key, p.Type)
 		}
@@ -141,7 +165,14 @@ func runConfigSet(c *cli.Context) error {
 		if p.Google == nil {
 			return fmt.Errorf("google config missing for %q", name)
 		}
-		p.Google.ClientSecret = value
+		if useKeychain || keychain.IsKeychainRef(p.Google.ClientSecret) {
+			if err := keychain.Set(name+"/client-secret", value); err != nil {
+				return fmt.Errorf("failed to store client secret in keychain: %w", err)
+			}
+			p.Google.ClientSecret = keychain.KeychainRef(name, "client-secret")
+		} else {
+			p.Google.ClientSecret = value
+		}
 
 	case "access-token":
 		if p.Type != config.ProviderGoogle {
@@ -150,7 +181,14 @@ func runConfigSet(c *cli.Context) error {
 		if p.Google == nil {
 			return fmt.Errorf("google config missing for %q", name)
 		}
-		p.Google.AccessToken = value
+		if useKeychain || keychain.IsKeychainRef(p.Google.AccessToken) {
+			if err := keychain.Set(name+"/access-token", value); err != nil {
+				return fmt.Errorf("failed to store access token in keychain: %w", err)
+			}
+			p.Google.AccessToken = keychain.KeychainRef(name, "access-token")
+		} else {
+			p.Google.AccessToken = value
+		}
 
 	case "refresh-token":
 		if p.Type != config.ProviderGoogle {
@@ -159,7 +197,14 @@ func runConfigSet(c *cli.Context) error {
 		if p.Google == nil {
 			return fmt.Errorf("google config missing for %q", name)
 		}
-		p.Google.RefreshToken = value
+		if useKeychain || keychain.IsKeychainRef(p.Google.RefreshToken) {
+			if err := keychain.Set(name+"/refresh-token", value); err != nil {
+				return fmt.Errorf("failed to store refresh token in keychain: %w", err)
+			}
+			p.Google.RefreshToken = keychain.KeychainRef(name, "refresh-token")
+		} else {
+			p.Google.RefreshToken = value
+		}
 
 	case "api-key":
 		if p.Type != config.ProviderAgentMail {
@@ -168,7 +213,14 @@ func runConfigSet(c *cli.Context) error {
 		if p.AgentMail == nil {
 			return fmt.Errorf("agentmail config missing for %q", name)
 		}
-		p.AgentMail.APIKey = value
+		if useKeychain || keychain.IsKeychainRef(p.AgentMail.APIKey) {
+			if err := keychain.Set(name+"/api-key", value); err != nil {
+				return fmt.Errorf("failed to store API key in keychain: %w", err)
+			}
+			p.AgentMail.APIKey = keychain.KeychainRef(name, "api-key")
+		} else {
+			p.AgentMail.APIKey = value
+		}
 
 	case "inbox-id":
 		if p.Type != config.ProviderAgentMail {

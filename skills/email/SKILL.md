@@ -118,14 +118,18 @@ email-cli config add --name google \
 ```bash
 email-cli config set mymail password "new-password"
 email-cli config set agent api-key "new-api-key"
+
+# Store secrets in macOS Keychain (optional, macOS only)
+email-cli config add --name agent --type agentmail --api-key "am_..." --inbox-id "x@agentmail.to" --use-keychain
+email-cli config set --use-keychain mymail password "new-password"
 ```
 
 ### View config as JSON
 ```bash
 email-cli config show                     # redacted by default
 email-cli config show mymail              # redacted by default
-email-cli config show --show-secrets
-email-cli config show mymail --show-secrets
+email-cli config show --show-secrets      # with secrets
+email-cli config show --show-secrets mymail
 ```
 
 ## Exit Codes

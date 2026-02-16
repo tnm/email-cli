@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/tnm/email-cli/internal/config"
+	"github.com/tnm/email-cli/internal/keychain"
 	"github.com/tnm/email-cli/internal/provider"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/oauth2"
@@ -73,6 +74,7 @@ func configAddCommand() *cli.Command {
 			&cli.StringFlag{Name: "refresh-token", Usage: "Google OAuth refresh token"},
 			&cli.StringFlag{Name: "oauth-method", Value: "device", Usage: "Google OAuth method when tokens are not provided: device or local"},
 			&cli.BoolFlag{Name: "default", Usage: "Set as default provider"},
+			&cli.BoolFlag{Name: "use-keychain", Usage: "Store secrets in macOS Keychain instead of config file"},
 		},
 		Action: runConfigAdd,
 	}
@@ -101,12 +103,17 @@ func runConfigAdd(c *cli.Context) error {
 	var providerCfg config.ProviderConfig
 	providerCfg.Name = name
 
+	useKeychain := c.Bool("use-keychain")
+	if useKeychain && !keychain.IsSupported() {
+		return fmt.Errorf("--use-keychain is only supported on macOS")
+	}
+
 	if isNonInteractive(c) {
 		if err := buildProviderConfigFromFlags(c, &providerCfg); err != nil {
 			return err
 		}
 	} else {
-		if err := buildProviderConfigInteractive(&providerCfg); err != nil {
+		if err := buildProviderConfigInteractive(&providerCfg, useKeychain); err != nil {
 			return err
 		}
 	}
@@ -131,6 +138,7 @@ func runConfigAdd(c *cli.Context) error {
 
 func buildProviderConfigFromFlags(c *cli.Context, providerCfg *config.ProviderConfig) error {
 	cfgType := c.String("type")
+	useKeychain := c.Bool("use-keychain")
 
 	// AgentMail doesn't require --from (uses inbox email)
 	if cfgType != "agentmail" {
@@ -151,6 +159,15 @@ func buildProviderConfigFromFlags(c *cli.Context, providerCfg *config.ProviderCo
 		if inboxID == "" {
 			return fmt.Errorf("--inbox-id is required for AgentMail")
 		}
+
+		if useKeychain {
+			account := providerCfg.Name + "/api-key"
+			if err := keychain.Set(account, apiKey); err != nil {
+				return fmt.Errorf("failed to store API key in keychain: %w", err)
+			}
+			apiKey = keychain.KeychainRef(providerCfg.Name, "api-key")
+		}
+
 		providerCfg.Type = config.ProviderAgentMail
 		providerCfg.AgentMail = &config.AgentMailConfig{
 			APIKey:  apiKey,
@@ -166,12 +183,22 @@ func buildProviderConfigFromFlags(c *cli.Context, providerCfg *config.ProviderCo
 		if port == 0 {
 			port = 587
 		}
+		password := c.String("password")
+
+		if useKeychain && password != "" {
+			account := providerCfg.Name + "/password"
+			if err := keychain.Set(account, password); err != nil {
+				return fmt.Errorf("failed to store password in keychain: %w", err)
+			}
+			password = keychain.KeychainRef(providerCfg.Name, "password")
+		}
+
 		providerCfg.Type = config.ProviderSMTP
 		providerCfg.SMTP = &config.SMTPConfig{
 			Host:     cfgHost,
 			Port:     port,
 			Username: c.String("username"),
-			Password: c.String("password"),
+			Password: password,
 			UseTLS:   c.Bool("tls"),
 		}
 
@@ -184,12 +211,22 @@ func buildProviderConfigFromFlags(c *cli.Context, providerCfg *config.ProviderCo
 		if port == 0 {
 			port = 1025
 		}
+		password := c.String("password")
+
+		if useKeychain && password != "" {
+			account := providerCfg.Name + "/password"
+			if err := keychain.Set(account, password); err != nil {
+				return fmt.Errorf("failed to store password in keychain: %w", err)
+			}
+			password = keychain.KeychainRef(providerCfg.Name, "password")
+		}
+
 		providerCfg.Type = config.ProviderProton
 		providerCfg.Proton = &config.ProtonConfig{
 			Host:     host,
 			Port:     port,
 			Username: c.String("username"),
-			Password: c.String("password"),
+			Password: password,
 		}
 
 	case "google":
@@ -209,6 +246,27 @@ func buildProviderConfigFromFlags(c *cli.Context, providerCfg *config.ProviderCo
 			}
 		}
 
+		if useKeychain {
+			if err := keychain.Set(providerCfg.Name+"/client-secret", clientSecret); err != nil {
+				return fmt.Errorf("failed to store client secret in keychain: %w", err)
+			}
+			clientSecret = keychain.KeychainRef(providerCfg.Name, "client-secret")
+
+			if accessToken != "" {
+				if err := keychain.Set(providerCfg.Name+"/access-token", accessToken); err != nil {
+					return fmt.Errorf("failed to store access token in keychain: %w", err)
+				}
+				accessToken = keychain.KeychainRef(providerCfg.Name, "access-token")
+			}
+
+			if refreshToken != "" {
+				if err := keychain.Set(providerCfg.Name+"/refresh-token", refreshToken); err != nil {
+					return fmt.Errorf("failed to store refresh token in keychain: %w", err)
+				}
+				refreshToken = keychain.KeychainRef(providerCfg.Name, "refresh-token")
+			}
+		}
+
 		providerCfg.Type = config.ProviderGoogle
 		providerCfg.Google = &config.GoogleConfig{
 			ClientID:     clientID,
@@ -225,7 +283,7 @@ func buildProviderConfigFromFlags(c *cli.Context, providerCfg *config.ProviderCo
 	return nil
 }
 
-func buildProviderConfigInteractive(providerCfg *config.ProviderConfig) error {
+func buildProviderConfigInteractive(providerCfg *config.ProviderConfig, useKeychain bool) error {
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Println("Select provider type:")
@@ -243,7 +301,15 @@ func buildProviderConfigInteractive(providerCfg *config.ProviderConfig) error {
 		providerCfg.Type = config.ProviderAgentMail
 		providerCfg.AgentMail = &config.AgentMailConfig{}
 
-		providerCfg.AgentMail.APIKey = prompt(reader, "API Key")
+		apiKey := prompt(reader, "API Key")
+		if useKeychain {
+			account := providerCfg.Name + "/api-key"
+			if err := keychain.Set(account, apiKey); err != nil {
+				return fmt.Errorf("failed to store API key in keychain: %w", err)
+			}
+			apiKey = keychain.KeychainRef(providerCfg.Name, "api-key")
+		}
+		providerCfg.AgentMail.APIKey = apiKey
 		providerCfg.AgentMail.InboxID = prompt(reader, "Inbox ID")
 
 	case "2":
@@ -251,14 +317,38 @@ func buildProviderConfigInteractive(providerCfg *config.ProviderConfig) error {
 		providerCfg.Google = &config.GoogleConfig{}
 
 		providerCfg.From = prompt(reader, "From email address")
-		providerCfg.Google.ClientID = prompt(reader, "Client ID")
-		providerCfg.Google.ClientSecret = prompt(reader, "Client Secret")
+		clientID := prompt(reader, "Client ID")
+		clientSecret := prompt(reader, "Client Secret")
 
 		oauthMethod := promptDefault(reader, "OAuth method (device/local)", "device")
-		accessToken, refreshToken, tokenExpiry, err := obtainGoogleTokens(providerCfg.Google.ClientID, providerCfg.Google.ClientSecret, oauthMethod)
+		accessToken, refreshToken, tokenExpiry, err := obtainGoogleTokens(clientID, clientSecret, oauthMethod)
 		if err != nil {
 			return err
 		}
+
+		if useKeychain {
+			if err := keychain.Set(providerCfg.Name+"/client-secret", clientSecret); err != nil {
+				return fmt.Errorf("failed to store client secret in keychain: %w", err)
+			}
+			clientSecret = keychain.KeychainRef(providerCfg.Name, "client-secret")
+
+			if accessToken != "" {
+				if err := keychain.Set(providerCfg.Name+"/access-token", accessToken); err != nil {
+					return fmt.Errorf("failed to store access token in keychain: %w", err)
+				}
+				accessToken = keychain.KeychainRef(providerCfg.Name, "access-token")
+			}
+
+			if refreshToken != "" {
+				if err := keychain.Set(providerCfg.Name+"/refresh-token", refreshToken); err != nil {
+					return fmt.Errorf("failed to store refresh token in keychain: %w", err)
+				}
+				refreshToken = keychain.KeychainRef(providerCfg.Name, "refresh-token")
+			}
+		}
+
+		providerCfg.Google.ClientID = clientID
+		providerCfg.Google.ClientSecret = clientSecret
 		providerCfg.Google.AccessToken = accessToken
 		providerCfg.Google.RefreshToken = refreshToken
 		providerCfg.Google.TokenExpiry = tokenExpiry
@@ -276,7 +366,15 @@ func buildProviderConfigInteractive(providerCfg *config.ProviderConfig) error {
 		}
 		providerCfg.Proton.Port = port
 		providerCfg.Proton.Username = prompt(reader, "Username (email)")
-		providerCfg.Proton.Password = prompt(reader, "Bridge password")
+		password := prompt(reader, "Bridge password")
+
+		if useKeychain {
+			if err := keychain.Set(providerCfg.Name+"/password", password); err != nil {
+				return fmt.Errorf("failed to store password in keychain: %w", err)
+			}
+			password = keychain.KeychainRef(providerCfg.Name, "password")
+		}
+		providerCfg.Proton.Password = password
 
 	case "4":
 		providerCfg.Type = config.ProviderSMTP
@@ -291,7 +389,15 @@ func buildProviderConfigInteractive(providerCfg *config.ProviderConfig) error {
 		}
 		providerCfg.SMTP.Port = port
 		providerCfg.SMTP.Username = prompt(reader, "Username")
-		providerCfg.SMTP.Password = prompt(reader, "Password")
+		password := prompt(reader, "Password")
+
+		if useKeychain {
+			if err := keychain.Set(providerCfg.Name+"/password", password); err != nil {
+				return fmt.Errorf("failed to store password in keychain: %w", err)
+			}
+			password = keychain.KeychainRef(providerCfg.Name, "password")
+		}
+		providerCfg.SMTP.Password = password
 
 		useTLS := promptDefault(reader, "Use TLS? (y/n)", "y")
 		providerCfg.SMTP.UseTLS = strings.ToLower(useTLS) == "y"
