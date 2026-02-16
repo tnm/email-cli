@@ -1,0 +1,11 @@
+{
+  "name": "email-cli",
+  "description": "Send emails via Google Workspace, Proton Mail, or SMTP. Built for AI agents and automation.",
+  "version": "1.0.0",
+  "author": {
+    "name": "tnm"
+  },
+  "repository": "https://github.com/tnm/email-cli",
+  "license": "MIT",
+  "keywords": ["email", "smtp", "gmail", "proton", "automation"]
+}
