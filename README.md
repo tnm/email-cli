@@ -43,11 +43,14 @@ go build -o email-cli .
 Install as a Claude Code plugin for AI agent access:
 
 ```bash
-# From GitHub
-/plugin install tnm/email-cli
+# Add the marketplace
+/plugin marketplace add tnm/email-cli
+
+# Install the plugin
+/plugin install email-cli@email-cli
 
 # Or load locally during development
-claude --plugin-dir /path/to/email-cli/email
+claude --plugin-dir /path/to/email-cli
 ```
 
 Once installed, Claude automatically uses email-cli when you ask it to send emails.
@@ -97,7 +100,7 @@ Walks you through provider selection and credential entry.
 #### Recommended for Gmail (lowest friction): SMTP + App Password
 
 ```bash
-email-cli config add gmail-smtp \
+email-cli config add --name gmail-smtp \
   --type smtp \
   --from me@gmail.com \
   --host smtp.gmail.com \
@@ -113,7 +116,7 @@ Use this when you want the fastest setup for humans and agents. It avoids Google
 #### SMTP
 
 ```bash
-email-cli config add mymail \
+email-cli config add --name mymail \
   --type smtp \
   --from me@example.com \
   --host smtp.example.com \
@@ -126,7 +129,7 @@ email-cli config add mymail \
 #### Proton Mail
 
 ```bash
-email-cli config add proton \
+email-cli config add --name proton \
   --type proton \
   --from me@proton.me \
   --username me@proton.me \
@@ -136,7 +139,7 @@ email-cli config add proton \
 #### Google Workspace (Gmail API)
 
 ```bash
-email-cli config add google \
+email-cli config add --name google \
   --type google \
   --from me@gmail.com \
   --client-id "xxx.apps.googleusercontent.com" \
@@ -147,7 +150,7 @@ By default this starts OAuth device flow and prints a verification URL/code in y
 To force localhost callback flow instead:
 
 ```bash
-email-cli config add google \
+email-cli config add --name google \
   --type google \
   --from me@gmail.com \
   --client-id "xxx.apps.googleusercontent.com" \
@@ -248,7 +251,7 @@ Use Gmail over SMTP with an App Password.
 3. Configure `email-cli`:
 
 ```bash
-email-cli config add gmail-smtp \
+email-cli config add --name gmail-smtp \
   --type smtp \
   --from me@gmail.com \
   --host smtp.gmail.com \
@@ -279,7 +282,7 @@ This path requires Google Cloud OAuth project setup.
 If you already have tokens, you can set them directly:
 
 ```bash
-email-cli config add google \
+email-cli config add --name google \
   --type google \
   --from me@gmail.com \
   --client-id "YOUR_CLIENT_ID" \
@@ -301,7 +304,7 @@ Uses [Proton Mail Bridge](https://proton.me/mail/bridge) which runs a local SMTP
 email-cli config add proton
 
 # Non-interactive
-email-cli config add proton \
+email-cli config add --name proton \
   --type proton \
   --from me@proton.me \
   --username me@proton.me \
@@ -319,7 +322,7 @@ Works with any SMTP server: SendGrid, Mailgun, Fastmail, AWS SES, etc.
 email-cli config add smtp
 
 # Non-interactive (SendGrid example)
-email-cli config add sendgrid \
+email-cli config add --name sendgrid \
   --type smtp \
   --from me@example.com \
   --host smtp.sendgrid.net \
@@ -356,7 +359,7 @@ email-cli config list
 - password or app password
 3. Configure:
 ```bash
-email-cli config add agent-mail \
+email-cli config add --name agent-mail \
   --type smtp \
   --from "$EMAIL_FROM" \
   --host "$SMTP_HOST" \
@@ -375,7 +378,8 @@ email-cli send -t "$TO" -s "$SUBJECT" -m "$BODY"
 The easiest way to use email-cli with Claude Code:
 
 ```bash
-/plugin install tnm/email-cli
+/plugin marketplace add tnm/email-cli
+/plugin install email-cli@email-cli
 ```
 
 Claude will automatically invoke the email skill when you ask it to send emails. The skill includes full documentation so Claude knows all available options.
@@ -404,7 +408,7 @@ cat analysis.txt | email-cli send -t user@x.com -s "Analysis Results"
 
 ```bash
 # Set up without prompts
-email-cli config add agent-mail \
+email-cli config add --name agent-mail \
   --type smtp \
   --from agent@example.com \
   --host smtp.example.com \
@@ -433,7 +437,7 @@ email-cli config show agent-mail --show-secrets
 You can use environment variables in scripts:
 
 ```bash
-email-cli config add mymail \
+email-cli config add --name mymail \
   --type smtp \
   --from "$EMAIL_FROM" \
   --host "$SMTP_HOST" \

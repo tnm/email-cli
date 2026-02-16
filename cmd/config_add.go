@@ -18,13 +18,13 @@ func configAddCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "add",
 		Usage:     "Add a new provider configuration",
-		ArgsUsage: "<name>",
+		ArgsUsage: "<name> or --name <name>",
 		Description: "Add a new provider configuration.\n\n" +
 			"Interactive mode (default):\n" +
 			"  email-cli config add mymail\n\n" +
 			"Non-interactive mode (for scripts/agents):\n" +
 			"  # SMTP\n" +
-			"  email-cli config add mymail \\\n" +
+			"  email-cli config add --name mymail \\\n" +
 			"    --type smtp \\\n" +
 			"    --from me@example.com \\\n" +
 			"    --host smtp.example.com \\\n" +
@@ -33,25 +33,26 @@ func configAddCommand() *cli.Command {
 			"    --password \"secret\" \\\n" +
 			"    --tls\n\n" +
 			"  # Proton Mail\n" +
-			"  email-cli config add proton \\\n" +
+			"  email-cli config add --name proton \\\n" +
 			"    --type proton \\\n" +
 			"    --from me@proton.me \\\n" +
 			"    --username me@proton.me \\\n" +
 			"    --password \"bridge-password\"\n\n" +
 			"  # Google (device auth by default)\n" +
-			"  email-cli config add google \\\n" +
+			"  email-cli config add --name google \\\n" +
 			"    --type google \\\n" +
 			"    --from me@gmail.com \\\n" +
 			"    --client-id \"xxx.apps.googleusercontent.com\" \\\n" +
 			"    --client-secret \"xxx\"\n\n" +
 			"  # Google with local callback flow\n" +
-			"  email-cli config add google \\\n" +
+			"  email-cli config add --name google \\\n" +
 			"    --type google \\\n" +
 			"    --from me@gmail.com \\\n" +
 			"    --client-id \"xxx.apps.googleusercontent.com\" \\\n" +
 			"    --client-secret \"xxx\" \\\n" +
 			"    --oauth-method local",
 		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "name", Aliases: []string{"n"}, Usage: "Provider name (alternative to positional arg)"},
 			&cli.StringFlag{Name: "type", Usage: "Provider type: smtp, proton, google"},
 			&cli.StringFlag{Name: "from", Usage: "From email address"},
 			&cli.StringFlag{Name: "host", Usage: "SMTP host / Bridge host"},
@@ -71,10 +72,15 @@ func configAddCommand() *cli.Command {
 }
 
 func runConfigAdd(c *cli.Context) error {
-	if c.Args().Len() != 1 {
-		return fmt.Errorf("usage: email-cli config add <name>")
+	// Accept name as either positional arg or --name flag
+	name := c.String("name")
+	if name == "" {
+		if c.Args().Len() == 1 {
+			name = c.Args().First()
+		} else {
+			return fmt.Errorf("usage: email-cli config add <name> [flags]\n       email-cli config add --name <name> [flags]")
+		}
 	}
-	name := c.Args().First()
 
 	cfg, err := config.Load()
 	if err != nil {
