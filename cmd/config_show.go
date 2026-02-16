@@ -95,5 +95,11 @@ func redactProviderConfig(providerCfg config.ProviderConfig) config.ProviderConf
 		redacted.Google = &googleCfg
 	}
 
+	if redacted.AgentMail != nil {
+		agentMailCfg := *redacted.AgentMail
+		agentMailCfg.APIKey = "[REDACTED]"
+		redacted.AgentMail = &agentMailCfg
+	}
+
 	return redacted
 }

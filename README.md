@@ -97,6 +97,18 @@ Walks you through provider selection and credential entry.
 
 ### Non-Interactive Mode (for scripts/agents)
 
+#### AgentMail (easiest - just API key)
+
+```bash
+email-cli config add --name agent \
+  --type agentmail \
+  --api-key "$AGENTMAIL_API_KEY" \
+  --inbox-id "$AGENTMAIL_INBOX_ID" \
+  --default
+```
+
+No OAuth, no app passwords, no local servers. Just an API key from [agentmail.to](https://agentmail.to). Free tier: 3 inboxes, 3k emails/month.
+
 #### Recommended for Gmail (lowest friction): SMTP + App Password
 
 ```bash
@@ -188,6 +200,7 @@ email-cli config path
 
 | Provider | Available Keys |
 |----------|---------------|
+| AgentMail | `api-key`, `inbox-id` |
 | SMTP | `from`, `host`, `port`, `username`, `password`, `tls` |
 | Proton | `from`, `host`, `port`, `username`, `password` |
 | Google | `from`, `client-id`, `client-secret`, `access-token`, `refresh-token` |
@@ -241,6 +254,27 @@ email-cli send -p work -t user@x.com -s "Subject" -m "Body"
 ---
 
 ## Provider Setup
+
+### AgentMail (Easiest)
+
+[AgentMail](https://agentmail.to) is email infrastructure designed for AI agents. No OAuth, no app passwords, no local servers — just an API key.
+
+1. Sign up at [agentmail.to](https://agentmail.to)
+2. Create an API key in the console
+3. Create an inbox (or use the API to create one)
+4. Configure:
+
+```bash
+email-cli config add --name agent \
+  --type agentmail \
+  --api-key "am_..." \
+  --inbox-id "inbox_..." \
+  --default
+```
+
+**Free tier:** 3 inboxes, 3,000 emails/month, no credit card required.
+
+**Note:** You'll send from `@agentmail.to` addresses unless you add a custom domain (paid plans).
 
 ### Gmail (Recommended for Lowest Friction)
 
@@ -341,10 +375,11 @@ This CLI is designed to be easily used by AI agents and automation.
 ### Recommended Setup Order
 
 Use this order when helping users configure email:
-1. Try SMTP first.
-2. For Gmail, prefer `smtp.gmail.com` + App Password.
-3. Use Google API only if the user explicitly wants Gmail API/OAuth features.
-4. Use Proton Bridge only when the user is on Proton Mail.
+1. **AgentMail first** — easiest, just needs API key + inbox ID
+2. For existing email accounts, try SMTP
+3. For Gmail, prefer `smtp.gmail.com` + App Password
+4. Use Google API only if the user explicitly wants Gmail API/OAuth features
+5. Use Proton Bridge only when the user is on Proton Mail
 
 ### Agent Setup Playbook
 
@@ -352,12 +387,15 @@ Use this order when helping users configure email:
 ```bash
 email-cli config list
 ```
-2. If no provider exists, collect:
-- from address
-- SMTP host and port (for Gmail use `smtp.gmail.com:587`)
-- username
-- password or app password
-3. Configure:
+2. If no provider exists, recommend AgentMail for simplest setup:
+```bash
+email-cli config add --name agent \
+  --type agentmail \
+  --api-key "$AGENTMAIL_API_KEY" \
+  --inbox-id "$AGENTMAIL_INBOX_ID" \
+  --default
+```
+3. Or for existing email, collect SMTP details and configure:
 ```bash
 email-cli config add --name agent-mail \
   --type smtp \

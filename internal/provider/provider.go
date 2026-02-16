@@ -45,6 +45,11 @@ func New(cfg *config.ProviderConfig) (Provider, error) {
 			return nil, fmt.Errorf("smtp config missing")
 		}
 		return NewSMTP(cfg.From, cfg.SMTP)
+	case config.ProviderAgentMail:
+		if cfg.AgentMail == nil {
+			return nil, fmt.Errorf("agentmail config missing")
+		}
+		return NewAgentMail(cfg.AgentMail)
 	default:
 		return nil, fmt.Errorf("unknown provider type: %s", cfg.Type)
 	}

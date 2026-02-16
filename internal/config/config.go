@@ -10,9 +10,10 @@ import (
 type ProviderType string
 
 const (
-	ProviderGoogle ProviderType = "google"
-	ProviderProton ProviderType = "proton"
-	ProviderSMTP   ProviderType = "smtp"
+	ProviderGoogle    ProviderType = "google"
+	ProviderProton    ProviderType = "proton"
+	ProviderSMTP      ProviderType = "smtp"
+	ProviderAgentMail ProviderType = "agentmail"
 )
 
 type GoogleConfig struct {
@@ -38,13 +39,19 @@ type SMTPConfig struct {
 	UseTLS   bool   `json:"use_tls"`
 }
 
+type AgentMailConfig struct {
+	APIKey  string `json:"api_key"`
+	InboxID string `json:"inbox_id"`
+}
+
 type ProviderConfig struct {
-	Type   ProviderType  `json:"type"`
-	Name   string        `json:"name"`
-	From   string        `json:"from"`
-	Google *GoogleConfig `json:"google,omitempty"`
-	Proton *ProtonConfig `json:"proton,omitempty"`
-	SMTP   *SMTPConfig   `json:"smtp,omitempty"`
+	Type      ProviderType     `json:"type"`
+	Name      string           `json:"name"`
+	From      string           `json:"from"`
+	Google    *GoogleConfig    `json:"google,omitempty"`
+	Proton    *ProtonConfig    `json:"proton,omitempty"`
+	SMTP      *SMTPConfig      `json:"smtp,omitempty"`
+	AgentMail *AgentMailConfig `json:"agentmail,omitempty"`
 }
 
 type Config struct {

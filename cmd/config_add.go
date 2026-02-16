@@ -23,6 +23,11 @@ func configAddCommand() *cli.Command {
 			"Interactive mode (default):\n" +
 			"  email-cli config add mymail\n\n" +
 			"Non-interactive mode (for scripts/agents):\n" +
+			"  # AgentMail (easiest - just API key)\n" +
+			"  email-cli config add --name agent \\\n" +
+			"    --type agentmail \\\n" +
+			"    --api-key \"am_...\" \\\n" +
+			"    --inbox-id \"inbox_...\"\n\n" +
 			"  # SMTP\n" +
 			"  email-cli config add --name mymail \\\n" +
 			"    --type smtp \\\n" +
@@ -53,7 +58,9 @@ func configAddCommand() *cli.Command {
 			"    --oauth-method local",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "name", Aliases: []string{"n"}, Usage: "Provider name (alternative to positional arg)"},
-			&cli.StringFlag{Name: "type", Usage: "Provider type: smtp, proton, google"},
+			&cli.StringFlag{Name: "type", Usage: "Provider type: agentmail, smtp, proton, google"},
+			&cli.StringFlag{Name: "api-key", Usage: "AgentMail API key"},
+			&cli.StringFlag{Name: "inbox-id", Usage: "AgentMail inbox ID"},
 			&cli.StringFlag{Name: "from", Usage: "From email address"},
 			&cli.StringFlag{Name: "host", Usage: "SMTP host / Bridge host"},
 			&cli.IntFlag{Name: "port", Usage: "SMTP port / Bridge port"},
@@ -123,14 +130,33 @@ func runConfigAdd(c *cli.Context) error {
 }
 
 func buildProviderConfigFromFlags(c *cli.Context, providerCfg *config.ProviderConfig) error {
-	cfgFrom := c.String("from")
-	if cfgFrom == "" {
-		return fmt.Errorf("--from is required")
-	}
-	providerCfg.From = cfgFrom
-
 	cfgType := c.String("type")
+
+	// AgentMail doesn't require --from (uses inbox email)
+	if cfgType != "agentmail" {
+		cfgFrom := c.String("from")
+		if cfgFrom == "" {
+			return fmt.Errorf("--from is required")
+		}
+		providerCfg.From = cfgFrom
+	}
+
 	switch cfgType {
+	case "agentmail":
+		apiKey := c.String("api-key")
+		inboxID := c.String("inbox-id")
+		if apiKey == "" {
+			return fmt.Errorf("--api-key is required for AgentMail")
+		}
+		if inboxID == "" {
+			return fmt.Errorf("--inbox-id is required for AgentMail")
+		}
+		providerCfg.Type = config.ProviderAgentMail
+		providerCfg.AgentMail = &config.AgentMailConfig{
+			APIKey:  apiKey,
+			InboxID: inboxID,
+		}
+
 	case "smtp":
 		cfgHost := c.String("host")
 		if cfgHost == "" {
@@ -193,7 +219,7 @@ func buildProviderConfigFromFlags(c *cli.Context, providerCfg *config.ProviderCo
 		}
 
 	default:
-		return fmt.Errorf("invalid --type: must be smtp, proton, or google")
+		return fmt.Errorf("invalid --type: must be agentmail, smtp, proton, or google")
 	}
 
 	return nil
@@ -203,16 +229,24 @@ func buildProviderConfigInteractive(providerCfg *config.ProviderConfig) error {
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Println("Select provider type:")
-	fmt.Println("  1. Google Workspace (Gmail API with OAuth2)")
-	fmt.Println("  2. Proton Mail (via Bridge)")
-	fmt.Println("  3. Generic SMTP")
-	fmt.Print("\nChoice [1-3]: ")
+	fmt.Println("  1. AgentMail (easiest - just API key)")
+	fmt.Println("  2. Google Workspace (Gmail API with OAuth2)")
+	fmt.Println("  3. Proton Mail (via Bridge)")
+	fmt.Println("  4. Generic SMTP")
+	fmt.Print("\nChoice [1-4]: ")
 
 	choice, _ := reader.ReadString('\n')
 	choice = strings.TrimSpace(choice)
 
 	switch choice {
 	case "1":
+		providerCfg.Type = config.ProviderAgentMail
+		providerCfg.AgentMail = &config.AgentMailConfig{}
+
+		providerCfg.AgentMail.APIKey = prompt(reader, "API Key")
+		providerCfg.AgentMail.InboxID = prompt(reader, "Inbox ID")
+
+	case "2":
 		providerCfg.Type = config.ProviderGoogle
 		providerCfg.Google = &config.GoogleConfig{}
 
@@ -229,7 +263,7 @@ func buildProviderConfigInteractive(providerCfg *config.ProviderConfig) error {
 		providerCfg.Google.RefreshToken = refreshToken
 		providerCfg.Google.TokenExpiry = tokenExpiry
 
-	case "2":
+	case "3":
 		providerCfg.Type = config.ProviderProton
 		providerCfg.Proton = &config.ProtonConfig{}
 
@@ -244,7 +278,7 @@ func buildProviderConfigInteractive(providerCfg *config.ProviderConfig) error {
 		providerCfg.Proton.Username = prompt(reader, "Username (email)")
 		providerCfg.Proton.Password = prompt(reader, "Bridge password")
 
-	case "3":
+	case "4":
 		providerCfg.Type = config.ProviderSMTP
 		providerCfg.SMTP = &config.SMTPConfig{}
 

@@ -14,6 +14,8 @@ func configSetCommand() *cli.Command {
 		Usage:     "Set a config value (for agents)",
 		ArgsUsage: "<name> <key> <value>",
 		Description: "Set a specific configuration value.\n\n" +
+			"Keys for AgentMail:\n" +
+			"  api-key, inbox-id\n\n" +
 			"Keys for SMTP/Proton:\n" +
 			"  from, host, port, username, password, tls\n\n" +
 			"Keys for Google:\n" +
@@ -21,7 +23,7 @@ func configSetCommand() *cli.Command {
 			"Examples:\n" +
 			"  email-cli config set mymail password \"new-password\"\n" +
 			"  email-cli config set mymail host smtp.newserver.com\n" +
-			"  email-cli config set mymail tls true",
+			"  email-cli config set agent api-key \"am_...\"",
 		Action: runConfigSet,
 	}
 }
@@ -158,6 +160,24 @@ func runConfigSet(c *cli.Context) error {
 			return fmt.Errorf("google config missing for %q", name)
 		}
 		p.Google.RefreshToken = value
+
+	case "api-key":
+		if p.Type != config.ProviderAgentMail {
+			return fmt.Errorf("key %q only valid for AgentMail provider", key)
+		}
+		if p.AgentMail == nil {
+			return fmt.Errorf("agentmail config missing for %q", name)
+		}
+		p.AgentMail.APIKey = value
+
+	case "inbox-id":
+		if p.Type != config.ProviderAgentMail {
+			return fmt.Errorf("key %q only valid for AgentMail provider", key)
+		}
+		if p.AgentMail == nil {
+			return fmt.Errorf("agentmail config missing for %q", name)
+		}
+		p.AgentMail.InboxID = value
 
 	default:
 		return fmt.Errorf("unknown key %q", key)
