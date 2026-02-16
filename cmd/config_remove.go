@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"sort"
 
@@ -43,16 +44,7 @@ func runConfigRemove(c *cli.Context) error {
 	delete(cfg.Providers, name)
 
 	if cfg.DefaultProvider == name {
-		cfg.DefaultProvider = ""
-		// Pick alphabetically first provider for deterministic behavior
-		if len(cfg.Providers) > 0 {
-			names := make([]string, 0, len(cfg.Providers))
-			for n := range cfg.Providers {
-				names = append(names, n)
-			}
-			sort.Strings(names)
-			cfg.DefaultProvider = names[0]
-		}
+		cfg.DefaultProvider = selectNewDefault(cfg.Providers)
 	}
 
 	if err := cfg.Save(); err != nil {
@@ -63,9 +55,39 @@ func runConfigRemove(c *cli.Context) error {
 	return nil
 }
 
-// cleanupKeychainSecrets removes any keychain entries associated with a provider
+// selectNewDefault picks a deterministic replacement default provider.
+func selectNewDefault(providers map[string]config.ProviderConfig) string {
+	if len(providers) == 0 {
+		return ""
+	}
+
+	names := make([]string, 0, len(providers))
+	for n := range providers {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names[0]
+}
+
+// cleanupKeychainSecrets removes any keychain entries associated with a provider.
 func cleanupKeychainSecrets(p *config.ProviderConfig) {
-	// Parse actual keychain references from config values
+	cleanupKeychainSecretsWithDeleter(p, keychain.Delete, os.Stderr)
+}
+
+func cleanupKeychainSecretsWithDeleter(p *config.ProviderConfig, deleteFn func(string) error, errWriter io.Writer) {
+	for _, account := range keychainAccountsToDelete(p) {
+		if err := deleteFn(account); err != nil {
+			fmt.Fprintf(errWriter, "Warning: failed to remove keychain entry %q: %v\n", account, err)
+		}
+	}
+}
+
+func keychainAccountsToDelete(p *config.ProviderConfig) []string {
+	if p == nil {
+		return nil
+	}
+
+	// Parse actual keychain references from config values.
 	var secretsToDelete []string
 
 	switch p.Type {
@@ -95,9 +117,5 @@ func cleanupKeychainSecrets(p *config.ProviderConfig) {
 		}
 	}
 
-	for _, account := range secretsToDelete {
-		if err := keychain.Delete(account); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to remove keychain entry %q: %v\n", account, err)
-		}
-	}
+	return secretsToDelete
 }

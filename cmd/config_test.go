@@ -1,11 +1,12 @@
 package cmd
 
 import (
-	"sort"
+	"bytes"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/tnm/email-cli/internal/config"
-	"github.com/tnm/email-cli/internal/keychain"
 )
 
 func TestRedactProviderConfig_RedactsSecrets(t *testing.T) {
@@ -158,19 +159,6 @@ func TestDeterministicDefaultAfterRemoval(t *testing.T) {
 	}
 }
 
-// selectNewDefault is the production logic extracted for testing
-func selectNewDefault(providers map[string]config.ProviderConfig) string {
-	if len(providers) == 0 {
-		return ""
-	}
-	names := make([]string, 0, len(providers))
-	for n := range providers {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	return names[0]
-}
-
 func TestCleanupKeychainSecrets_ParsesActualRefs(t *testing.T) {
 	// Test that cleanupKeychainSecrets parses the actual keychain reference
 	// not just constructs one from provider name
@@ -219,7 +207,7 @@ func TestCleanupKeychainSecrets_ParsesActualRefs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			accounts := getKeychainAccountsToDelete(&tt.provider)
+			accounts := keychainAccountsToDelete(&tt.provider)
 			if len(accounts) == 0 {
 				t.Fatal("expected at least one account to delete")
 			}
@@ -230,37 +218,58 @@ func TestCleanupKeychainSecrets_ParsesActualRefs(t *testing.T) {
 	}
 }
 
-// getKeychainAccountsToDelete extracts the keychain accounts that would be deleted
-// This mirrors the logic in cleanupKeychainSecrets for testing
-func getKeychainAccountsToDelete(p *config.ProviderConfig) []string {
-	var accounts []string
+func TestCleanupKeychainSecretsWithDeleter_DeletesParsedAccounts(t *testing.T) {
+	p := &config.ProviderConfig{
+		Type: config.ProviderGoogle,
+		Google: &config.GoogleConfig{
+			ClientSecret: "keychain:a/client-secret",
+			AccessToken:  "keychain:b/access-token",
+			RefreshToken: "keychain:c/refresh-token",
+		},
+	}
 
-	switch p.Type {
-	case config.ProviderAgentMail:
-		if p.AgentMail != nil && keychain.IsKeychainRef(p.AgentMail.APIKey) {
-			accounts = append(accounts, keychain.ParseKeychainRef(p.AgentMail.APIKey))
-		}
-	case config.ProviderSMTP:
-		if p.SMTP != nil && keychain.IsKeychainRef(p.SMTP.Password) {
-			accounts = append(accounts, keychain.ParseKeychainRef(p.SMTP.Password))
-		}
-	case config.ProviderProton:
-		if p.Proton != nil && keychain.IsKeychainRef(p.Proton.Password) {
-			accounts = append(accounts, keychain.ParseKeychainRef(p.Proton.Password))
-		}
-	case config.ProviderGoogle:
-		if p.Google != nil {
-			if keychain.IsKeychainRef(p.Google.ClientSecret) {
-				accounts = append(accounts, keychain.ParseKeychainRef(p.Google.ClientSecret))
-			}
-			if keychain.IsKeychainRef(p.Google.AccessToken) {
-				accounts = append(accounts, keychain.ParseKeychainRef(p.Google.AccessToken))
-			}
-			if keychain.IsKeychainRef(p.Google.RefreshToken) {
-				accounts = append(accounts, keychain.ParseKeychainRef(p.Google.RefreshToken))
-			}
+	var deleted []string
+	deleteFn := func(account string) error {
+		deleted = append(deleted, account)
+		return nil
+	}
+
+	var stderr bytes.Buffer
+	cleanupKeychainSecretsWithDeleter(p, deleteFn, &stderr)
+
+	want := []string{"a/client-secret", "b/access-token", "c/refresh-token"}
+	if len(deleted) != len(want) {
+		t.Fatalf("deleted %d accounts, want %d", len(deleted), len(want))
+	}
+	for i := range want {
+		if deleted[i] != want[i] {
+			t.Fatalf("deleted[%d] = %q, want %q", i, deleted[i], want[i])
 		}
 	}
-	return accounts
+	if stderr.Len() != 0 {
+		t.Fatalf("expected no stderr output, got: %q", stderr.String())
+	}
 }
 
+func TestCleanupKeychainSecretsWithDeleter_WarnsOnDeleteError(t *testing.T) {
+	p := &config.ProviderConfig{
+		Type: config.ProviderSMTP,
+		SMTP: &config.SMTPConfig{
+			Password: "keychain:acct/password",
+		},
+	}
+
+	deleteFn := func(account string) error {
+		if account != "acct/password" {
+			t.Fatalf("delete called with %q, want acct/password", account)
+		}
+		return errors.New("boom")
+	}
+
+	var stderr bytes.Buffer
+	cleanupKeychainSecretsWithDeleter(p, deleteFn, &stderr)
+
+	if !strings.Contains(stderr.String(), `failed to remove keychain entry "acct/password": boom`) {
+		t.Fatalf("expected warning in stderr, got: %q", stderr.String())
+	}
+}

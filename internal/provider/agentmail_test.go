@@ -1,9 +1,10 @@
 package provider
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
+	"net/url"
 	"testing"
 	"time"
 
@@ -20,41 +21,124 @@ func TestAgentMailClientHasTimeout(t *testing.T) {
 }
 
 func TestAgentMailSend_Timeout(t *testing.T) {
-	// Create a server that delays longer than our timeout
-	// Use a short timeout for testing
+	originalBase := agentMailAPIBase
 	originalTimeout := httpClient.Timeout
+	agentMailAPIBase = ""
 	httpClient.Timeout = 100 * time.Millisecond
-	defer func() { httpClient.Timeout = originalTimeout }()
+	defer func() {
+		agentMailAPIBase = originalBase
+		httpClient.Timeout = originalTimeout
+	}()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(200 * time.Millisecond) // longer than client timeout
+		time.Sleep(200 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 
-	// We can't easily inject the server URL into AgentMail since it uses a constant
-	// But we can verify the client would timeout by testing directly
-	req, _ := http.NewRequest("GET", server.URL, nil)
-	_, err := httpClient.Do(req)
-
+	agentMailAPIBase = server.URL
+	a, err := NewAgentMail(&config.AgentMailConfig{
+		APIKey:  "am_test",
+		InboxID: "test@agentmail.to",
+	})
+	if err != nil {
+		t.Fatalf("NewAgentMail() error = %v", err)
+	}
+	err = a.Send(&Email{
+		To:      []string{"user@example.com"},
+		Subject: "test",
+		Body:    "body",
+	})
 	if err == nil {
 		t.Fatal("expected timeout error, got nil")
 	}
-	if !strings.Contains(err.Error(), "timeout") && !strings.Contains(err.Error(), "deadline exceeded") {
-		t.Fatalf("expected timeout error, got: %v", err)
+	var netErr *url.Error
+	if !errors.As(err, &netErr) {
+		t.Fatalf("expected url.Error, got: %T (%v)", err, err)
+	}
+	if !netErr.Timeout() {
+		t.Fatalf("expected timeout url.Error, got: %v", err)
 	}
 }
 
 func TestAgentMailSend_HTTPError(t *testing.T) {
-	// Create a server that returns an error
+	originalBase := agentMailAPIBase
+	defer func() { agentMailAPIBase = originalBase }()
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Path; got != "/inboxes/test@agentmail.to/messages/send" {
+			t.Fatalf("path = %q, want /inboxes/test@agentmail.to/messages/send", got)
+		}
+		if got := r.Method; got != http.MethodPost {
+			t.Fatalf("method = %q, want POST", got)
+		}
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte(`{"error":"unauthorized","message":"Invalid API key"}`))
 	}))
 	defer server.Close()
 
-	// Test that we handle HTTP errors correctly by checking error parsing
-	// (We can't easily inject the URL, but we can verify error handling logic)
+	agentMailAPIBase = server.URL
+	a, err := NewAgentMail(&config.AgentMailConfig{
+		APIKey:  "am_test",
+		InboxID: "test@agentmail.to",
+	})
+	if err != nil {
+		t.Fatalf("NewAgentMail() error = %v", err)
+	}
+
+	err = a.Send(&Email{
+		To:      []string{"user@example.com"},
+		Subject: "test",
+		Body:    "body",
+	})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	want := "agentmail error: Invalid API key"
+	if got := err.Error(); got != want {
+		t.Fatalf("error = %q, want %q", got, want)
+	}
+}
+
+func TestAgentMailSend_Success(t *testing.T) {
+	originalBase := agentMailAPIBase
+	defer func() { agentMailAPIBase = originalBase }()
+
+	var authHeader string
+	var gotPath string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader = r.Header.Get("Authorization")
+		gotPath = r.URL.Path
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	agentMailAPIBase = server.URL
+	a, err := NewAgentMail(&config.AgentMailConfig{
+		APIKey:  "am_test",
+		InboxID: "test@agentmail.to",
+	})
+	if err != nil {
+		t.Fatalf("NewAgentMail() error = %v", err)
+	}
+
+	err = a.Send(&Email{
+		To:      []string{"user@example.com"},
+		Subject: "test",
+		Body:    "body",
+	})
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if authHeader != "Bearer am_test" {
+		t.Fatalf("Authorization header = %q, want Bearer am_test", authHeader)
+	}
+	wantPath := "/inboxes/test@agentmail.to/messages/send"
+	if gotPath != wantPath {
+		t.Fatalf("path = %q, want %q", gotPath, wantPath)
+	}
 }
 
 func TestNewAgentMail_RequiresAPIKey(t *testing.T) {

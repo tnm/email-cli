@@ -15,7 +15,7 @@ import (
 	"github.com/tnm/email-cli/internal/config"
 )
 
-const agentMailAPIBase = "https://api.agentmail.to/v0"
+var agentMailAPIBase = "https://api.agentmail.to/v0"
 
 var httpClient = &http.Client{
 	Timeout: 30 * time.Second,
