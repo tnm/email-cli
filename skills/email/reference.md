@@ -51,7 +51,7 @@ email-cli send -t user@x.com -s "News" -m "<h1>Title</h1>" --html
 Add a new provider.
 
 ```bash
-email-cli config add <name> [flags]
+email-cli config add --name <name> [flags]
 ```
 
 **Interactive mode** (no flags): Prompts for all values.
@@ -60,8 +60,11 @@ email-cli config add <name> [flags]
 
 | Flag | Description |
 |------|-------------|
-| `--type` | Provider type: `smtp`, `proton`, `google` |
-| `--from` | From email address |
+| `--name` | Provider name |
+| `--type` | Provider type: `agentmail`, `smtp`, `proton`, `google` |
+| `--api-key` | AgentMail API key |
+| `--inbox-id` | AgentMail inbox ID (email address) |
+| `--from` | From email address (SMTP/Proton/Google) |
 | `--host` | SMTP host |
 | `--port` | SMTP port (default: 587) |
 | `--username` | Auth username |
@@ -71,13 +74,20 @@ email-cli config add <name> [flags]
 | `--client-secret` | Google OAuth client secret |
 | `--access-token` | Google OAuth access token |
 | `--refresh-token` | Google OAuth refresh token |
-| `--oauth-method` | Google OAuth method when tokens are not provided: `device` (default) or `local` |
+| `--oauth-method` | Google OAuth method: `device` (default) or `local` |
 | `--default` | Set as default provider |
 
 **Examples:**
 ```bash
-# Gmail (recommended lowest friction)
-email-cli config add gmail-smtp \
+# AgentMail (easiest)
+email-cli config add --name agent \
+  --type agentmail \
+  --api-key "am_..." \
+  --inbox-id "myagent@agentmail.to" \
+  --default
+
+# Gmail (recommended for existing accounts)
+email-cli config add --name gmail-smtp \
   --type smtp \
   --from me@gmail.com \
   --host smtp.gmail.com \
@@ -88,7 +98,7 @@ email-cli config add gmail-smtp \
   --default
 
 # SMTP
-email-cli config add work \
+email-cli config add --name work \
   --type smtp \
   --from me@company.com \
   --host smtp.company.com \
@@ -98,14 +108,14 @@ email-cli config add work \
   --default
 
 # Proton
-email-cli config add proton \
+email-cli config add --name proton \
   --type proton \
   --from me@proton.me \
   --username me@proton.me \
   --password "bridge-pass"
 
 # Google
-email-cli config add gmail \
+email-cli config add --name gmail \
   --type google \
   --from me@gmail.com \
   --client-id "xxx.apps.googleusercontent.com" \
@@ -149,6 +159,7 @@ email-cli config set <name> <key> <value>
 
 | Provider | Keys |
 |----------|------|
+| AgentMail | `api-key`, `inbox-id` |
 | SMTP | `from`, `host`, `port`, `username`, `password`, `tls` |
 | Proton | `from`, `host`, `port`, `username`, `password` |
 | Google | `from`, `client-id`, `client-secret`, `access-token`, `refresh-token` |
@@ -157,7 +168,7 @@ email-cli config set <name> <key> <value>
 ```bash
 email-cli config set work password "new-pass"
 email-cli config set work host smtp.newserver.com
-email-cli config set work tls true
+email-cli config set agent api-key "am_newkey..."
 ```
 
 ---
@@ -199,8 +210,16 @@ Located at `~/.config/email-cli/config.json`:
 
 ```json
 {
-  "default_provider": "work",
+  "default_provider": "agent",
   "providers": {
+    "agent": {
+      "type": "agentmail",
+      "name": "agent",
+      "agentmail": {
+        "api_key": "am_...",
+        "inbox_id": "myagent@agentmail.to"
+      }
+    },
     "work": {
       "type": "smtp",
       "name": "work",
@@ -232,6 +251,7 @@ Located at `~/.config/email-cli/config.json`:
 
 | Provider | Default Host | Default Port |
 |----------|--------------|--------------|
+| AgentMail | api.agentmail.to | N/A (REST API) |
 | Proton | 127.0.0.1 | 1025 |
 | SMTP | (required) | 587 |
 | Google | Gmail API | N/A |

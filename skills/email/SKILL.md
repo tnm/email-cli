@@ -1,6 +1,6 @@
 ---
 name: email
-description: Send emails via CLI. Use when the user asks to send an email, compose a message, or needs email functionality. Supports Google Workspace, Proton Mail, and generic SMTP.
+description: Send emails via CLI. Use when the user asks to send an email, compose a message, or needs email functionality. Supports AgentMail, Google Workspace, Proton Mail, and generic SMTP.
 ---
 
 # Email CLI
@@ -47,16 +47,28 @@ email-cli config list
 
 ### Recommended decision order (for agents)
 
-1. Prefer SMTP setup first.
-2. For Gmail, prefer `smtp.gmail.com` with an App Password.
-3. Only use Google API OAuth if the user explicitly asks for Gmail API/OAuth.
-4. Use Proton only for Proton Mail Bridge users.
+1. **AgentMail first** — easiest, just needs API key + inbox ID
+2. For existing email accounts, try SMTP
+3. For Gmail, prefer `smtp.gmail.com` with an App Password
+4. Only use Google API OAuth if the user explicitly asks for Gmail API/OAuth
+5. Use Proton only for Proton Mail Bridge users
 
 ### Add provider (non-interactive, for agents)
 
-**Gmail (lowest friction):**
+**AgentMail (easiest - no OAuth, no app passwords):**
 ```bash
-email-cli config add gmail-smtp \
+email-cli config add --name agent \
+  --type agentmail \
+  --api-key "am_..." \
+  --inbox-id "myagent@agentmail.to" \
+  --default
+```
+
+Get API key and create inbox at [agentmail.to](https://agentmail.to). Free tier: 3 inboxes, 3k emails/month.
+
+**Gmail (lowest friction for existing accounts):**
+```bash
+email-cli config add --name gmail-smtp \
   --type smtp \
   --from me@gmail.com \
   --host smtp.gmail.com \
@@ -74,7 +86,7 @@ If user does not have an app password yet:
 
 **SMTP:**
 ```bash
-email-cli config add mymail \
+email-cli config add --name mymail \
   --type smtp \
   --from me@example.com \
   --host smtp.example.com \
@@ -86,7 +98,7 @@ email-cli config add mymail \
 
 **Proton Mail:**
 ```bash
-email-cli config add proton \
+email-cli config add --name proton \
   --type proton \
   --from me@proton.me \
   --username me@proton.me \
@@ -95,7 +107,7 @@ email-cli config add proton \
 
 **Google API (only when explicitly requested):**
 ```bash
-email-cli config add google \
+email-cli config add --name google \
   --type google \
   --from me@gmail.com \
   --client-id "xxx.apps.googleusercontent.com" \
@@ -105,6 +117,7 @@ email-cli config add google \
 ### Update config
 ```bash
 email-cli config set mymail password "new-password"
+email-cli config set agent api-key "new-api-key"
 ```
 
 ### View config as JSON
