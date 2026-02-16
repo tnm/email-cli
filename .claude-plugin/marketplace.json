@@ -1,11 +1,14 @@
 {
   "name": "email-cli",
   "description": "Email tools for AI agents",
+  "owner": {
+    "name": "tnm"
+  },
   "plugins": [
     {
       "name": "email-cli",
       "description": "Send emails via Google Workspace, Proton Mail, or SMTP",
-      "source": ".",
+      "source": "./",
       "version": "1.0.0"
     }
   ]
