@@ -25,7 +25,7 @@ func configSetCommand() *cli.Command {
 			"  email-cli config set mymail password \"new-password\"\n" +
 			"  email-cli config set mymail host smtp.newserver.com\n" +
 			"  email-cli config set agent api-key \"am_...\"\n" +
-			"  email-cli config set agent api-key \"am_...\" --use-keychain",
+			"  email-cli config set --use-keychain agent api-key \"am_...\"",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "use-keychain", Usage: "Store secret in macOS Keychain"},
 		},

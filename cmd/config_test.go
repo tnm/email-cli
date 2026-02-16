@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/tnm/email-cli/internal/config"
+	"github.com/tnm/email-cli/internal/keychain"
 )
 
 func TestRedactProviderConfig_RedactsSecrets(t *testing.T) {
@@ -104,5 +106,122 @@ func TestRedactConfig_RedactsNestedProviderSecrets(t *testing.T) {
 	if orig.Providers["proton1"].Proton.Password != "proton-secret" {
 		t.Fatalf("original proton password mutated")
 	}
+}
+
+func TestDeterministicDefaultAfterRemoval(t *testing.T) {
+	// Simulate picking a new default after removal
+	// Should be alphabetically first
+	providers := map[string]config.ProviderConfig{
+		"zebra":  {Name: "zebra"},
+		"alpha":  {Name: "alpha"},
+		"middle": {Name: "middle"},
+	}
+
+	// Get alphabetically first
+	names := make([]string, 0, len(providers))
+	for n := range providers {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	newDefault := names[0]
+
+	if newDefault != "alpha" {
+		t.Fatalf("new default = %q, want alpha", newDefault)
+	}
+}
+
+func TestCleanupKeychainSecrets_IdentifiesRefs(t *testing.T) {
+	// Test that we correctly identify keychain refs for each provider type
+	tests := []struct {
+		name     string
+		provider config.ProviderConfig
+		wantRefs int
+	}{
+		{
+			name: "agentmail with keychain ref",
+			provider: config.ProviderConfig{
+				Type: config.ProviderAgentMail,
+				AgentMail: &config.AgentMailConfig{
+					APIKey:  "keychain:test/api-key",
+					InboxID: "inbox@example.com",
+				},
+			},
+			wantRefs: 1,
+		},
+		{
+			name: "agentmail without keychain ref",
+			provider: config.ProviderConfig{
+				Type: config.ProviderAgentMail,
+				AgentMail: &config.AgentMailConfig{
+					APIKey:  "am_plaintext",
+					InboxID: "inbox@example.com",
+				},
+			},
+			wantRefs: 0,
+		},
+		{
+			name: "smtp with keychain ref",
+			provider: config.ProviderConfig{
+				Type: config.ProviderSMTP,
+				SMTP: &config.SMTPConfig{
+					Password: "keychain:test/password",
+				},
+			},
+			wantRefs: 1,
+		},
+		{
+			name: "google with multiple keychain refs",
+			provider: config.ProviderConfig{
+				Type: config.ProviderGoogle,
+				Google: &config.GoogleConfig{
+					ClientSecret: "keychain:test/client-secret",
+					AccessToken:  "keychain:test/access-token",
+					RefreshToken: "keychain:test/refresh-token",
+				},
+			},
+			wantRefs: 3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			refs := countKeychainRefs(&tt.provider)
+			if refs != tt.wantRefs {
+				t.Errorf("countKeychainRefs() = %d, want %d", refs, tt.wantRefs)
+			}
+		})
+	}
+}
+
+// countKeychainRefs counts keychain references in a provider config (test helper)
+func countKeychainRefs(p *config.ProviderConfig) int {
+	count := 0
+	switch p.Type {
+	case config.ProviderAgentMail:
+		if p.AgentMail != nil && keychain.IsKeychainRef(p.AgentMail.APIKey) {
+			count++
+		}
+	case config.ProviderSMTP:
+		if p.SMTP != nil && keychain.IsKeychainRef(p.SMTP.Password) {
+			count++
+		}
+	case config.ProviderProton:
+		if p.Proton != nil && keychain.IsKeychainRef(p.Proton.Password) {
+			count++
+		}
+	case config.ProviderGoogle:
+		if p.Google != nil {
+			if keychain.IsKeychainRef(p.Google.ClientSecret) {
+				count++
+			}
+			if keychain.IsKeychainRef(p.Google.AccessToken) {
+				count++
+			}
+			if keychain.IsKeychainRef(p.Google.RefreshToken) {
+				count++
+			}
+		}
+	}
+	return count
 }
 

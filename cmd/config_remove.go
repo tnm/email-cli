@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"sort"
 
 	"github.com/tnm/email-cli/internal/config"
@@ -95,6 +96,8 @@ func cleanupKeychainSecrets(name string, p *config.ProviderConfig) {
 	}
 
 	for _, account := range secretsToDelete {
-		_ = keychain.Delete(account) // Ignore errors, best effort cleanup
+		if err := keychain.Delete(account); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to remove keychain entry %q: %v\n", account, err)
+		}
 	}
 }
