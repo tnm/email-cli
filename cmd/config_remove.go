@@ -37,7 +37,7 @@ func runConfigRemove(c *cli.Context) error {
 
 	// Clean up any keychain entries for this provider
 	if keychain.IsSupported() {
-		cleanupKeychainSecrets(name, &p)
+		cleanupKeychainSecrets(&p)
 	}
 
 	delete(cfg.Providers, name)
@@ -64,33 +64,33 @@ func runConfigRemove(c *cli.Context) error {
 }
 
 // cleanupKeychainSecrets removes any keychain entries associated with a provider
-func cleanupKeychainSecrets(name string, p *config.ProviderConfig) {
-	// Check each possible secret field for keychain references
+func cleanupKeychainSecrets(p *config.ProviderConfig) {
+	// Parse actual keychain references from config values
 	var secretsToDelete []string
 
 	switch p.Type {
 	case config.ProviderAgentMail:
 		if p.AgentMail != nil && keychain.IsKeychainRef(p.AgentMail.APIKey) {
-			secretsToDelete = append(secretsToDelete, name+"/api-key")
+			secretsToDelete = append(secretsToDelete, keychain.ParseKeychainRef(p.AgentMail.APIKey))
 		}
 	case config.ProviderSMTP:
 		if p.SMTP != nil && keychain.IsKeychainRef(p.SMTP.Password) {
-			secretsToDelete = append(secretsToDelete, name+"/password")
+			secretsToDelete = append(secretsToDelete, keychain.ParseKeychainRef(p.SMTP.Password))
 		}
 	case config.ProviderProton:
 		if p.Proton != nil && keychain.IsKeychainRef(p.Proton.Password) {
-			secretsToDelete = append(secretsToDelete, name+"/password")
+			secretsToDelete = append(secretsToDelete, keychain.ParseKeychainRef(p.Proton.Password))
 		}
 	case config.ProviderGoogle:
 		if p.Google != nil {
 			if keychain.IsKeychainRef(p.Google.ClientSecret) {
-				secretsToDelete = append(secretsToDelete, name+"/client-secret")
+				secretsToDelete = append(secretsToDelete, keychain.ParseKeychainRef(p.Google.ClientSecret))
 			}
 			if keychain.IsKeychainRef(p.Google.AccessToken) {
-				secretsToDelete = append(secretsToDelete, name+"/access-token")
+				secretsToDelete = append(secretsToDelete, keychain.ParseKeychainRef(p.Google.AccessToken))
 			}
 			if keychain.IsKeychainRef(p.Google.RefreshToken) {
-				secretsToDelete = append(secretsToDelete, name+"/refresh-token")
+				secretsToDelete = append(secretsToDelete, keychain.ParseKeychainRef(p.Google.RefreshToken))
 			}
 		}
 	}

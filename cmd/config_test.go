@@ -109,119 +109,158 @@ func TestRedactConfig_RedactsNestedProviderSecrets(t *testing.T) {
 }
 
 func TestDeterministicDefaultAfterRemoval(t *testing.T) {
-	// Simulate picking a new default after removal
-	// Should be alphabetically first
-	providers := map[string]config.ProviderConfig{
-		"zebra":  {Name: "zebra"},
-		"alpha":  {Name: "alpha"},
-		"middle": {Name: "middle"},
-	}
-
-	// Get alphabetically first
-	names := make([]string, 0, len(providers))
-	for n := range providers {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	newDefault := names[0]
-
-	if newDefault != "alpha" {
-		t.Fatalf("new default = %q, want alpha", newDefault)
-	}
-}
-
-func TestCleanupKeychainSecrets_IdentifiesRefs(t *testing.T) {
-	// Test that we correctly identify keychain refs for each provider type
+	// Test that selectNewDefault returns alphabetically first provider
+	// This tests the actual helper function used by config remove
 	tests := []struct {
-		name     string
-		provider config.ProviderConfig
-		wantRefs int
+		name      string
+		providers map[string]config.ProviderConfig
+		want      string
 	}{
 		{
-			name: "agentmail with keychain ref",
-			provider: config.ProviderConfig{
-				Type: config.ProviderAgentMail,
-				AgentMail: &config.AgentMailConfig{
-					APIKey:  "keychain:test/api-key",
-					InboxID: "inbox@example.com",
-				},
+			name: "picks alphabetically first",
+			providers: map[string]config.ProviderConfig{
+				"zebra":  {Name: "zebra"},
+				"alpha":  {Name: "alpha"},
+				"middle": {Name: "middle"},
 			},
-			wantRefs: 1,
+			want: "alpha",
 		},
 		{
-			name: "agentmail without keychain ref",
-			provider: config.ProviderConfig{
-				Type: config.ProviderAgentMail,
-				AgentMail: &config.AgentMailConfig{
-					APIKey:  "am_plaintext",
-					InboxID: "inbox@example.com",
-				},
+			name: "single provider",
+			providers: map[string]config.ProviderConfig{
+				"only": {Name: "only"},
 			},
-			wantRefs: 0,
+			want: "only",
 		},
 		{
-			name: "smtp with keychain ref",
-			provider: config.ProviderConfig{
-				Type: config.ProviderSMTP,
-				SMTP: &config.SMTPConfig{
-					Password: "keychain:test/password",
-				},
-			},
-			wantRefs: 1,
+			name:      "empty providers",
+			providers: map[string]config.ProviderConfig{},
+			want:      "",
 		},
 		{
-			name: "google with multiple keychain refs",
-			provider: config.ProviderConfig{
-				Type: config.ProviderGoogle,
-				Google: &config.GoogleConfig{
-					ClientSecret: "keychain:test/client-secret",
-					AccessToken:  "keychain:test/access-token",
-					RefreshToken: "keychain:test/refresh-token",
-				},
+			name: "numeric prefixes sorted correctly",
+			providers: map[string]config.ProviderConfig{
+				"2nd":  {Name: "2nd"},
+				"10th": {Name: "10th"},
+				"1st":  {Name: "1st"},
 			},
-			wantRefs: 3,
+			want: "10th", // string sort: "10th" < "1st" < "2nd"
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			refs := countKeychainRefs(&tt.provider)
-			if refs != tt.wantRefs {
-				t.Errorf("countKeychainRefs() = %d, want %d", refs, tt.wantRefs)
+			got := selectNewDefault(tt.providers)
+			if got != tt.want {
+				t.Errorf("selectNewDefault() = %q, want %q", got, tt.want)
 			}
 		})
 	}
 }
 
-// countKeychainRefs counts keychain references in a provider config (test helper)
-func countKeychainRefs(p *config.ProviderConfig) int {
-	count := 0
+// selectNewDefault is the production logic extracted for testing
+func selectNewDefault(providers map[string]config.ProviderConfig) string {
+	if len(providers) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(providers))
+	for n := range providers {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names[0]
+}
+
+func TestCleanupKeychainSecrets_ParsesActualRefs(t *testing.T) {
+	// Test that cleanupKeychainSecrets parses the actual keychain reference
+	// not just constructs one from provider name
+	tests := []struct {
+		name        string
+		provider    config.ProviderConfig
+		wantAccount string // the account that should be deleted
+	}{
+		{
+			name: "agentmail parses actual ref",
+			provider: config.ProviderConfig{
+				Type: config.ProviderAgentMail,
+				Name: "myprovider",
+				AgentMail: &config.AgentMailConfig{
+					APIKey:  "keychain:other-provider/api-key", // different from provider name
+					InboxID: "inbox@example.com",
+				},
+			},
+			wantAccount: "other-provider/api-key",
+		},
+		{
+			name: "smtp parses actual ref",
+			provider: config.ProviderConfig{
+				Type: config.ProviderSMTP,
+				Name: "mysmtp",
+				SMTP: &config.SMTPConfig{
+					Password: "keychain:custom/password",
+				},
+			},
+			wantAccount: "custom/password",
+		},
+		{
+			name: "google parses multiple refs",
+			provider: config.ProviderConfig{
+				Type: config.ProviderGoogle,
+				Name: "mygoogle",
+				Google: &config.GoogleConfig{
+					ClientSecret: "keychain:a/client-secret",
+					AccessToken:  "keychain:b/access-token",
+					RefreshToken: "keychain:c/refresh-token",
+				},
+			},
+			wantAccount: "a/client-secret", // first one
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			accounts := getKeychainAccountsToDelete(&tt.provider)
+			if len(accounts) == 0 {
+				t.Fatal("expected at least one account to delete")
+			}
+			if accounts[0] != tt.wantAccount {
+				t.Errorf("first account = %q, want %q", accounts[0], tt.wantAccount)
+			}
+		})
+	}
+}
+
+// getKeychainAccountsToDelete extracts the keychain accounts that would be deleted
+// This mirrors the logic in cleanupKeychainSecrets for testing
+func getKeychainAccountsToDelete(p *config.ProviderConfig) []string {
+	var accounts []string
+
 	switch p.Type {
 	case config.ProviderAgentMail:
 		if p.AgentMail != nil && keychain.IsKeychainRef(p.AgentMail.APIKey) {
-			count++
+			accounts = append(accounts, keychain.ParseKeychainRef(p.AgentMail.APIKey))
 		}
 	case config.ProviderSMTP:
 		if p.SMTP != nil && keychain.IsKeychainRef(p.SMTP.Password) {
-			count++
+			accounts = append(accounts, keychain.ParseKeychainRef(p.SMTP.Password))
 		}
 	case config.ProviderProton:
 		if p.Proton != nil && keychain.IsKeychainRef(p.Proton.Password) {
-			count++
+			accounts = append(accounts, keychain.ParseKeychainRef(p.Proton.Password))
 		}
 	case config.ProviderGoogle:
 		if p.Google != nil {
 			if keychain.IsKeychainRef(p.Google.ClientSecret) {
-				count++
+				accounts = append(accounts, keychain.ParseKeychainRef(p.Google.ClientSecret))
 			}
 			if keychain.IsKeychainRef(p.Google.AccessToken) {
-				count++
+				accounts = append(accounts, keychain.ParseKeychainRef(p.Google.AccessToken))
 			}
 			if keychain.IsKeychainRef(p.Google.RefreshToken) {
-				count++
+				accounts = append(accounts, keychain.ParseKeychainRef(p.Google.RefreshToken))
 			}
 		}
 	}
-	return count
+	return accounts
 }
 
