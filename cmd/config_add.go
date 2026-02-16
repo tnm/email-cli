@@ -27,7 +27,7 @@ func configAddCommand() *cli.Command {
 			"  email-cli config add --name agent \\\n" +
 			"    --type agentmail \\\n" +
 			"    --api-key \"am_...\" \\\n" +
-			"    --inbox-id \"inbox_...\"\n\n" +
+			"    --inbox-id \"myagent@agentmail.to\"\n\n" +
 			"  # SMTP\n" +
 			"  email-cli config add --name mymail \\\n" +
 			"    --type smtp \\\n" +

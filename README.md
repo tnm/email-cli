@@ -1,6 +1,6 @@
 # email-cli
 
-A simple CLI for agents to send emails. Supports Google Workspace, Proton Mail, and generic SMTP.
+A simple CLI for agents to send emails. Supports AgentMail, Google Workspace, Proton Mail, and generic SMTP.
 
 ## Install
 
@@ -82,7 +82,7 @@ Config is stored at `~/.config/email-cli/config.json`
 
 Operational guidance:
 
-- Avoid passing secrets directly on command lines when possible (`--password`, `--access-token`, `--refresh-token`) because shell history and process inspection may expose them.
+- Avoid passing secrets directly on command lines when possible (`--api-key`, `--password`, `--access-token`, `--refresh-token`) because shell history and process inspection may expose them.
 - Prefer app-specific passwords for SMTP providers (for Gmail, use an App Password).
 - Rotate credentials immediately if a machine, shell history, or agent transcript is exposed.
 - For install safety, prefer reviewing `install.sh` from a pinned version tag before running it.
@@ -102,8 +102,8 @@ Walks you through provider selection and credential entry.
 ```bash
 email-cli config add --name agent \
   --type agentmail \
-  --api-key "$AGENTMAIL_API_KEY" \
-  --inbox-id "$AGENTMAIL_INBOX_ID" \
+  --api-key "am_..." \
+  --inbox-id "myagent@agentmail.to" \
   --default
 ```
 
@@ -268,7 +268,7 @@ email-cli send -p work -t user@x.com -s "Subject" -m "Body"
 email-cli config add --name agent \
   --type agentmail \
   --api-key "am_..." \
-  --inbox-id "inbox_..." \
+  --inbox-id "myagent@agentmail.to" \
   --default
 ```
 
@@ -391,8 +391,8 @@ email-cli config list
 ```bash
 email-cli config add --name agent \
   --type agentmail \
-  --api-key "$AGENTMAIL_API_KEY" \
-  --inbox-id "$AGENTMAIL_INBOX_ID" \
+  --api-key "am_..." \
+  --inbox-id "myagent@agentmail.to" \
   --default
 ```
 3. Or for existing email, collect SMTP details and configure:
@@ -492,8 +492,16 @@ email-cli config add --name mymail \
 
 ```json
 {
-  "default_provider": "work",
+  "default_provider": "agent",
   "providers": {
+    "agent": {
+      "type": "agentmail",
+      "name": "agent",
+      "agentmail": {
+        "api_key": "am_...",
+        "inbox_id": "myagent@agentmail.to"
+      }
+    },
     "work": {
       "type": "google",
       "name": "work",
