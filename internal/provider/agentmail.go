@@ -10,11 +10,16 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/tnm/email-cli/internal/config"
 )
 
 const agentMailAPIBase = "https://api.agentmail.to/v0"
+
+var httpClient = &http.Client{
+	Timeout: 30 * time.Second,
+}
 
 type AgentMail struct {
 	apiKey  string
@@ -124,7 +129,7 @@ func (a *AgentMail) Send(email *Email) error {
 	httpReq.Header.Set("Authorization", "Bearer "+a.apiKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := httpClient.Do(httpReq)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}

@@ -24,17 +24,17 @@ echo "Generated content" | email-cli send -t user@example.com -s "Report"
 
 ### Send to multiple recipients
 ```bash
-email-cli send -t a@x.com -t b@x.com -s "Team Update" -m "Hello team"
+email-cli send -t a@example.com -t b@example.com -s "Team Update" -m "Hello team"
 ```
 
 ### HTML email
 ```bash
-email-cli send -t user@x.com -s "Newsletter" -m "<h1>Hello</h1>" --html
+email-cli send -t user@example.com -s "Newsletter" -m "<h1>Hello</h1>" --html
 ```
 
 ### Use specific provider
 ```bash
-email-cli send -p work -t user@x.com -s "Subject" -m "Body"
+email-cli send -p work -t user@example.com -s "Subject" -m "Body"
 ```
 
 ## Configuration

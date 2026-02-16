@@ -29,19 +29,19 @@ email-cli send [flags]
 **Examples:**
 ```bash
 # Basic
-email-cli send -t user@x.com -s "Hello" -m "Body"
+email-cli send -t user@example.com -s "Hello" -m "Body"
 
 # Multiple recipients with CC
-email-cli send -t a@x.com -t b@x.com -c cc@x.com -s "Team" -m "Hi"
+email-cli send -t a@example.com -t b@example.com -c cc@example.com -s "Team" -m "Hi"
 
 # Attachment
-email-cli send -t user@x.com -s "Report" -m "Attached" -a file.pdf
+email-cli send -t user@example.com -s "Report" -m "Attached" -a file.pdf
 
 # Pipe body
-echo "Content" | email-cli send -t user@x.com -s "Subject"
+echo "Content" | email-cli send -t user@example.com -s "Subject"
 
 # HTML
-email-cli send -t user@x.com -s "News" -m "<h1>Title</h1>" --html
+email-cli send -t user@example.com -s "News" -m "<h1>Title</h1>" --html
 ```
 
 ---

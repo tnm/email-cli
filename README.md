@@ -259,23 +259,23 @@ email-cli send -t user@example.com -s "Subject" -m "Body"
 
 ```bash
 # Multiple recipients
-email-cli send -t a@x.com -t b@x.com -s "Team Update" -m "Hello team"
+email-cli send -t a@example.com -t b@example.com -s "Team Update" -m "Hello team"
 
 # With CC/BCC
-email-cli send -t user@x.com -c cc@x.com -b bcc@x.com -s "Subject" -m "Body"
+email-cli send -t user@example.com -c cc@example.com -b bcc@example.com -s "Subject" -m "Body"
 
 # HTML email
-email-cli send -t user@x.com -s "Newsletter" -m "<h1>Hello</h1><p>World</p>" --html
+email-cli send -t user@example.com -s "Newsletter" -m "<h1>Hello</h1><p>World</p>" --html
 
 # Attachments
-email-cli send -t user@x.com -s "Report" -m "See attached" -a report.pdf -a data.csv
+email-cli send -t user@example.com -s "Report" -m "See attached" -a report.pdf -a data.csv
 
 # Read body from stdin
-cat message.txt | email-cli send -t user@x.com -s "From file"
-echo "Quick message" | email-cli send -t user@x.com -s "Piped"
+cat message.txt | email-cli send -t user@example.com -s "From file"
+echo "Quick message" | email-cli send -t user@example.com -s "Piped"
 
 # Use specific provider
-email-cli send -p work -t user@x.com -s "Subject" -m "Body"
+email-cli send -p work -t user@example.com -s "Subject" -m "Body"
 ```
 
 ---
@@ -456,17 +456,17 @@ Claude will automatically invoke the email skill when you ask it to send emails.
 email-cli send -t "$TO" -s "$SUBJECT" -m "$BODY"
 
 # Exit codes: 0 = success, non-zero = failure
-email-cli send -t user@x.com -s "Test" -m "Hello" && echo "Sent!"
+email-cli send -t user@example.com -s "Test" -m "Hello" && echo "Sent!"
 ```
 
 ### Pipe Content
 
 ```bash
 # Pipe generated content
-echo "$GENERATED_REPORT" | email-cli send -t user@x.com -s "Daily Report"
+echo "$GENERATED_REPORT" | email-cli send -t user@example.com -s "Daily Report"
 
 # From files
-cat analysis.txt | email-cli send -t user@x.com -s "Analysis Results"
+cat analysis.txt | email-cli send -t user@example.com -s "Analysis Results"
 ```
 
 ### Non-Interactive Config
